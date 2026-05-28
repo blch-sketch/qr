@@ -1,39 +1,38 @@
 (function (global) {
   "use strict";
 
-  // Set this after deploying the Cloudflare Worker (see worker/index.js)
-  // Example: "https://marking-check.YOUR_SUBDOMAIN.workers.dev"
+  // If CORS blocks the direct call, set this to your Cloudflare Worker URL.
+  // Leave empty to try the CRPT API directly from the browser first.
   var WORKER_URL = "";
 
-  // Status values returned by the CRPT API
+  var CRPT_DIRECT = "https://mobile.api.crptech.ru/api/v3/check";
+
   var STATUS_INFO = {
-    APPLIED_IN_PRODUCTION: { label: "В обороте",     tone: "warning", message: "Товар введён в оборот, данных о продаже нет." },
-    INTRODUCED:            { label: "В обороте",     tone: "warning", message: "Товар введён в оборот." },
-    SOLD:                  { label: "Продан",         tone: "success", message: "Товар реализован через кассу." },
-    EXPORTED:              { label: "Экспортирован",  tone: "muted",   message: "Товар вывезен за пределы РФ." },
-    RETIRED:               { label: "Выбыл",          tone: "danger",  message: "Товар выбыл из оборота." },
-    WRITTEN_OFF:           { label: "Списан",         tone: "danger",  message: "Товар списан." },
-    WITHDRAWN:             { label: "Изъят",          tone: "danger",  message: "Товар изъят из оборота." },
+    APPLIED_IN_PRODUCTION: { label: "В обороте",    tone: "warning", message: "Товар введён в оборот, данных о продаже нет." },
+    INTRODUCED:            { label: "В обороте",    tone: "warning", message: "Товар введён в оборот." },
+    SOLD:                  { label: "Продан",        tone: "success", message: "Товар реализован через кассу." },
+    EXPORTED:              { label: "Экспортирован", tone: "muted",   message: "Товар вывезен за пределы РФ." },
+    RETIRED:               { label: "Выбыл",         tone: "danger",  message: "Товар выбыл из оборота." },
+    WRITTEN_OFF:           { label: "Списан",        tone: "danger",  message: "Товар списан." },
+    WITHDRAWN:             { label: "Изъят",         tone: "danger",  message: "Товар изъят из оборота." },
   };
 
-  function mapResponse(parsed, body) {
-    // The CRPT API can return the item either directly or nested.
-    // We try all known envelope shapes defensively.
-    var item = null;
+  function endpointUrl(cis) {
+    var base = WORKER_URL || CRPT_DIRECT;
+    var url = new URL(base);
+    url.searchParams.set("cis", cis);
+    return url.toString();
+  }
 
-    if (body && body.cisInfo) {
-      item = body.cisInfo;
-    } else if (body && Array.isArray(body.data) && body.data.length) {
-      item = body.data[0];
-    } else if (body && body.status && body.gtin) {
-      item = body;
-    }
+  function mapResponse(parsed, body) {
+    var item = body.cisInfo
+      || (Array.isArray(body.data) && body.data[0])
+      || (body.status && body.gtin ? body : null);
 
     if (!item) {
       return null;
     }
 
-    // Map to our internal result shape
     var status = item.status || "APPLIED_IN_PRODUCTION";
     var statusInfo = STATUS_INFO[status] || {
       label: status,
@@ -55,15 +54,12 @@
   }
 
   async function checkCode(parsed) {
-    if (!WORKER_URL || !parsed || !parsed.isValid) {
+    if (!parsed || !parsed.isValid) {
       return null;
     }
 
     try {
-      var url = new URL(WORKER_URL);
-      url.searchParams.set("cis", parsed.normalized);
-
-      var response = await fetch(url.toString(), {
+      var response = await fetch(endpointUrl(parsed.normalized), {
         signal: AbortSignal.timeout(11000),
       });
 
@@ -79,12 +75,14 @@
 
       return mapResponse(parsed, body);
     } catch (_) {
+      // CORS block or network error → fall through to mock
       return null;
     }
   }
 
   global.ChestnyZnakApi = {
-    isConfigured: function () { return Boolean(WORKER_URL); },
+    // Always enabled — tries direct CRPT call, falls back to mock on any error
+    isConfigured: function () { return true; },
     setWorkerUrl: function (url) { WORKER_URL = url; },
     getWorkerUrl: function () { return WORKER_URL; },
     checkCode: checkCode,
