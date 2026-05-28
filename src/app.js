@@ -148,7 +148,7 @@
 
     var result = null;
 
-    if (ChestnyZnakApi.isConfigured() && parsed.isValid) {
+    if (typeof ChestnyZnakApi !== "undefined" && ChestnyZnakApi.isConfigured() && parsed.isValid) {
       setScanStatus("Запрос в Честный ЗНАК…");
       setBusy(true);
       try {
