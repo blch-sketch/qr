@@ -460,6 +460,21 @@ textarea:focus {
   gap: 12px;
 }
 
+.source-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface-strong);
+  white-space: nowrap;
+}
+
+.source-badge.is-api {
+  color: var(--teal-dark);
+  background: #d0f0ea;
+}
+
 .field-grid {
   display: grid;
   grid-template-columns: 1fr;

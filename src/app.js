@@ -141,11 +141,27 @@
     }
   }
 
-  function handleRawCode(raw, source) {
+  async function handleRawCode(raw, source) {
     var parsed = MarkingCodeParser.parse(raw);
-    var result = DemoRegistry.resolveParsedCode(parsed);
 
     elements.manualInput.value = MarkingCodeParser.codeForDisplay(parsed.normalized || raw);
+
+    var result = null;
+
+    if (ChestnyZnakApi.isConfigured() && parsed.isValid) {
+      setScanStatus("Запрос в Честный ЗНАК…");
+      setBusy(true);
+      try {
+        result = await ChestnyZnakApi.checkCode(parsed);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    if (!result) {
+      result = DemoRegistry.resolveParsedCode(parsed);
+    }
+
     setScanStatus(source === "camera" ? "Проверка завершена" : "Готово");
     renderResult(result);
   }
@@ -192,10 +208,15 @@
 
     elements.emptyResult.hidden = true;
     elements.resultContent.hidden = false;
+    var sourceBadge = result.source === "api"
+      ? "<span class=\"source-badge is-api\">Честный ЗНАК</span>"
+      : "<span class=\"source-badge\">Demo</span>";
+
     elements.resultContent.innerHTML = [
       "<div class=\"result-top\">",
       "  <div class=\"status-row\">",
       "    <span class=\"status-pill is-" + escapeHtml(statusInfo.tone) + "\">" + escapeHtml(statusInfo.label) + "</span>",
+      "    " + sourceBadge,
       "  </div>",
       "  <h2>" + escapeHtml(result.productName) + "</h2>",
       "  <p>" + escapeHtml(result.category) + " · " + escapeHtml(result.manufacturer) + "</p>",

@@ -1,10 +1,11 @@
-const CACHE_NAME = "marking-demo-v1";
+const CACHE_NAME = "marking-demo-v2";
 const ASSETS = [
   "./",
   "index.html",
   "styles/app.css",
   "src/parser.js",
   "src/mock-data.js",
+  "src/api.js",
   "src/scanner.js",
   "src/app.js",
   "manifest.webmanifest",
