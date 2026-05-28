@@ -1,4 +1,4 @@
-const CACHE_NAME = "marking-demo-v4";
+const CACHE_NAME = "marking-demo-v5";
 const ASSETS = [
   "./",
   "index.html",

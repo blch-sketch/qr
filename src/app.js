@@ -136,6 +136,10 @@
   }
 
   async function handleRawCode(raw, source) {
+    if (source === "camera") {
+      stopCamera();
+    }
+
     var parsed = MarkingCodeParser.parse(raw);
 
     elements.manualInput.value = MarkingCodeParser.codeForDisplay(parsed.normalized || raw);
