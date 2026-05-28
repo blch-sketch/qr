@@ -1,0 +1,6 @@
+.DS_Store
+.tools/
+.server.log
+.server.pid
+.tunnel.log
+.tunnel.pid

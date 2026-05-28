@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Parser tests</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 24px; line-height: 1.45; }
+      pre { padding: 12px; background: #f3f6f8; border-radius: 8px; white-space: pre-wrap; }
+      .pass { color: #11603a; }
+      .fail { color: #8c1f2d; }
+    </style>
+    <script src="../src/parser.js"></script>
+  </head>
+  <body>
+    <h1>Parser tests</h1>
+    <pre id="output"></pre>
+    <script>
+      const GS = MarkingCodeParser.GS;
+      const cases = [
+        {
+          name: "compact with GS",
+          raw: "010460123456789321A1B2C3D4E5" + GS + "91ABCD" + GS + "92TAIL",
+          gtin: "04601234567893",
+          serial: "A1B2C3D4E5",
+          valid: true
+        },
+        {
+          name: "editable GS token",
+          raw: "010460987654321321ZXCV98765<GS>91WXYZ<GS>92TAIL",
+          gtin: "04609876543213",
+          serial: "ZXCV98765",
+          valid: true
+        },
+        {
+          name: "parenthesized",
+          raw: "(01)04607001112228(21)UNKNOWN42(91)QWER(92)TAIL",
+          gtin: "04607001112228",
+          serial: "UNKNOWN42",
+          valid: true
+        },
+        {
+          name: "invalid without serial",
+          raw: "010460123456789391ABCD92BROKEN",
+          valid: false
+        }
+      ];
+
+      const lines = [];
+      let failed = 0;
+
+      cases.forEach((item) => {
+        const result = MarkingCodeParser.parse(item.raw);
+        const ok =
+          result.isValid === item.valid &&
+          (!item.gtin || result.data.gtin === item.gtin) &&
+          (!item.serial || result.data.serial === item.serial);
+
+        if (!ok) failed += 1;
+        lines.push(`${ok ? "PASS" : "FAIL"} ${item.name}`);
+        if (!ok) lines.push(JSON.stringify(result, null, 2));
+      });
+
+      const output = document.getElementById("output");
+      output.textContent = lines.join("\n");
+      output.className = failed ? "fail" : "pass";
+    </script>
+  </body>
+</html>

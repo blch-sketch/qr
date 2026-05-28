@@ -1,0 +1,18 @@
+{
+  "name": "Демо сканера маркировки",
+  "short_name": "Маркировка",
+  "description": "Мобильная веб-демка проверки Data Matrix кода маркировки.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f5f7f8",
+  "theme_color": "#f5f7f8",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "assets/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f5f7f8">
+    <title>Сканер маркировки</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="styles/app.css">
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" async onload="window.lucide && window.lucide.createIcons()"></script>
+    <script src="src/parser.js" defer></script>
+    <script src="src/mock-data.js" defer></script>
+    <script src="src/scanner.js" defer></script>
+    <script src="src/app.js" defer></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-bar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div>
+            <p>Демо</p>
+            <h1>Сканер маркировки</h1>
+          </div>
+        </div>
+        <button class="icon-button" id="installButton" type="button" title="Установить" aria-label="Установить" hidden>
+          <i data-lucide="download"></i>
+        </button>
+      </header>
+
+      <div class="workspace">
+        <section class="scanner-panel" aria-labelledby="scannerTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Data Matrix</p>
+              <h2 id="scannerTitle">Проверка кода</h2>
+            </div>
+            <span class="badge" id="supportBadge">Проверка</span>
+          </div>
+
+          <div class="camera-shell" id="cameraShell">
+            <video id="cameraPreview" muted playsinline></video>
+            <div class="camera-placeholder" id="cameraPlaceholder">
+              <i data-lucide="scan-line"></i>
+              <span>Камера выключена</span>
+            </div>
+            <div class="scan-frame" aria-hidden="true"></div>
+            <p class="scan-status" id="scanStatus" role="status" aria-live="polite">Готово</p>
+          </div>
+
+          <div class="toolbar" role="toolbar" aria-label="Управление сканером">
+            <button class="tool-button" id="startCameraButton" type="button" title="Включить камеру">
+              <i data-lucide="camera"></i>
+              <span>Камера</span>
+            </button>
+            <button class="icon-button" id="stopCameraButton" type="button" title="Остановить камеру" aria-label="Остановить камеру" disabled>
+              <i data-lucide="circle-stop"></i>
+            </button>
+            <button class="icon-button" id="uploadImageButton" type="button" title="Загрузить фото" aria-label="Загрузить фото">
+              <i data-lucide="image-up"></i>
+            </button>
+            <input class="hidden-file-input" id="imageInput" type="file" accept="image/*" capture="environment">
+            <button class="icon-button" id="clearButton" type="button" title="Очистить" aria-label="Очистить">
+              <i data-lucide="rotate-ccw"></i>
+            </button>
+          </div>
+        </section>
+
+        <section class="manual-panel" aria-labelledby="manualTitle">
+          <div class="panel-heading compact">
+            <div>
+              <p class="eyebrow">Fallback</p>
+              <h2 id="manualTitle">Ручной ввод</h2>
+            </div>
+          </div>
+
+          <textarea id="manualInput" spellcheck="false" placeholder="010460123456789321A1B2C3D4E5&lt;GS&gt;91ABCD&lt;GS&gt;92DEMO"></textarea>
+
+          <div class="input-actions">
+            <button class="primary-button" id="checkManualButton" type="button">
+              <i data-lucide="search-check"></i>
+              <span>Проверить</span>
+            </button>
+            <button class="ghost-button" id="sampleClearButton" type="button">
+              <i data-lucide="eraser"></i>
+              <span>Стереть</span>
+            </button>
+          </div>
+
+          <div class="demo-codes" id="demoCodes" aria-label="Демо-коды"></div>
+        </section>
+
+        <section class="result-panel" id="resultPanel" aria-labelledby="resultTitle">
+          <div class="empty-result" id="emptyResult">
+            <i data-lucide="package-search"></i>
+            <div>
+              <p class="eyebrow">Результат</p>
+              <h2 id="resultTitle">Нет проверки</h2>
+            </div>
+          </div>
+          <div class="result-content" id="resultContent" hidden></div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>
