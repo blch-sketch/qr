@@ -1,9 +1,10 @@
-const CACHE_NAME = "marking-demo-v5";
+const CACHE_NAME = "marking-demo-v23";
 const ASSETS = [
   "./",
   "index.html",
   "styles/app.css",
   "src/parser.js",
+  "src/receipt.js",
   "src/mock-data.js",
   "src/api.js",
   "src/scanner.js",
@@ -34,8 +35,12 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request);
-    })
+    fetch(event.request)
+      .then((response) => {
+        var copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

@@ -16,11 +16,8 @@
       stopCameraButton: document.getElementById("stopCameraButton"),
       uploadImageButton: document.getElementById("uploadImageButton"),
       imageInput: document.getElementById("imageInput"),
+      receiptChip: document.getElementById("receiptChip"),
       clearButton: document.getElementById("clearButton"),
-      manualInput: document.getElementById("manualInput"),
-      checkManualButton: document.getElementById("checkManualButton"),
-      sampleClearButton: document.getElementById("sampleClearButton"),
-      demoCodes: document.getElementById("demoCodes"),
       emptyResult: document.getElementById("emptyResult"),
       resultContent: document.getElementById("resultContent"),
       installButton: document.getElementById("installButton")
@@ -33,7 +30,7 @@
     });
 
     bindEvents();
-    renderDemoCodes();
+    renderReceiptChip();
     refreshScannerSupport();
     registerServiceWorker();
     renderIcons();
@@ -46,13 +43,6 @@
       elements.imageInput.click();
     });
     elements.clearButton.addEventListener("click", clearResult);
-    elements.checkManualButton.addEventListener("click", function () {
-      handleRawCode(elements.manualInput.value, "manual");
-    });
-    elements.sampleClearButton.addEventListener("click", function () {
-      elements.manualInput.value = "";
-      elements.manualInput.focus();
-    });
     elements.imageInput.addEventListener("change", handleImageUpload);
 
     window.addEventListener("beforeinstallprompt", function (event) {
@@ -78,7 +68,7 @@
       var support = await scanner.checkSupport();
       applyBadgeFromSupport(support);
     } catch (_) {
-      setSupportBadge("Ручной ввод", "muted");
+      setSupportBadge("Нет сканера", "muted");
     }
   }
 
@@ -93,7 +83,7 @@
       applyBadgeFromSupport(support);
     } catch (error) {
       setScanStatus(error.message || "Камера недоступна");
-      setSupportBadge("Ручной ввод", "muted");
+      setSupportBadge("Нет сканера", "muted");
       stopCamera();
     } finally {
       setBusy(false);
@@ -101,11 +91,13 @@
   }
 
   function applyBadgeFromSupport(support) {
-    if (!support) { setSupportBadge("Ручной ввод", "muted"); return; }
+    if (!support) { setSupportBadge("Нет сканера", "muted"); return; }
+    if (support.dataMatrix && support.qrCode) { setSupportBadge("DM + QR", "success"); return; }
     if (support.dataMatrix) { setSupportBadge("Data Matrix", "success"); return; }
+    if (support.qrCode) { setSupportBadge("QR", "success"); return; }
     if (support.zxing)      { setSupportBadge("ZXing",       "warning"); return; }
     if (support.detector)   { setSupportBadge("Нет Data Matrix", "warning"); return; }
-    setSupportBadge("Ручной ввод", "muted");
+    setSupportBadge("Нет сканера", "muted");
   }
 
   function stopCamera() {
@@ -140,13 +132,23 @@
       stopCamera();
     }
 
+    var receipt = typeof ReceiptParser !== "undefined" ? ReceiptParser.parse(raw) : { isReceipt: false };
+
+    if (receipt.isReceipt) {
+      ReceiptParser.save(receipt);
+      setScanStatus("Чек сохранен");
+      renderReceiptChip();
+      renderReceiptResult(receipt);
+      return;
+    }
+
     var parsed = MarkingCodeParser.parse(raw);
 
-    elements.manualInput.value = MarkingCodeParser.codeForDisplay(parsed.normalized || raw);
-
     var result = null;
+    var liveApiRequested = false;
 
-    if (typeof ChestnyZnakApi !== "undefined" && ChestnyZnakApi.isConfigured() && parsed.isValid) {
+    if (typeof ChestnyZnakApi !== "undefined" && ChestnyZnakApi.isConfigured() && shouldTryLiveApi(parsed)) {
+      liveApiRequested = true;
       setScanStatus("Запрос в Честный ЗНАК…");
       setBusy(true);
       try {
@@ -158,34 +160,130 @@
 
     if (!result) {
       result = DemoRegistry.resolveParsedCode(parsed);
+
+      if (liveApiRequested && typeof ChestnyZnakApi.getLastError === "function") {
+        result.apiError = ChestnyZnakApi.getLastError();
+      }
     }
 
     setScanStatus(source === "camera" ? "Проверка завершена" : "Готово");
     renderResult(result);
   }
 
-  function renderDemoCodes() {
-    elements.demoCodes.innerHTML = "";
+  function shouldTryLiveApi(parsed) {
+    if (!parsed || !parsed.normalized) {
+      return false;
+    }
 
-    DemoRegistry.demoCodes.forEach(function (demo) {
-      var button = document.createElement("button");
-      button.className = "demo-code";
-      button.type = "button";
-      button.innerHTML = "<span>" + escapeHtml(demo.title) + "</span><small>" + escapeHtml(demo.caption) + "</small>";
-      button.addEventListener("click", function () {
-        elements.manualInput.value = MarkingCodeParser.codeForDisplay(demo.raw);
-        handleRawCode(demo.raw, "demo");
+    return parsed.isValid
+      || Boolean(parsed.data && parsed.data.gtin)
+      || /01\d{14}/.test(parsed.normalized)
+      || parsed.normalized.length >= 18;
+  }
+
+  function renderReceiptChip() {
+    if (!elements.receiptChip || typeof ReceiptParser === "undefined") {
+      return;
+    }
+
+    var receipt = ReceiptParser.getSaved();
+
+    if (!receipt || !receipt.dateIso) {
+      elements.receiptChip.hidden = true;
+      elements.receiptChip.innerHTML = "";
+      return;
+    }
+
+    elements.receiptChip.hidden = false;
+    elements.receiptChip.innerHTML = [
+      "<i data-lucide=\"receipt-text\"></i>",
+      "<span>Чек: " + escapeHtml(DemoRegistry.formatDateTime(receipt.dateIso)) + "</span>",
+      "<button type=\"button\" id=\"clearReceiptButton\" title=\"Очистить чек\" aria-label=\"Очистить чек\">",
+      "  <i data-lucide=\"x\"></i>",
+      "</button>"
+    ].join("");
+
+    var clearButton = document.getElementById("clearReceiptButton");
+    if (clearButton) {
+      clearButton.addEventListener("click", function () {
+        ReceiptParser.clearSaved();
+        renderReceiptChip();
       });
-      elements.demoCodes.appendChild(button);
-    });
+    }
+
+    renderIcons();
+  }
+
+  function renderReceiptResult(receipt) {
+    elements.emptyResult.hidden = true;
+    elements.resultContent.hidden = false;
+    elements.resultContent.innerHTML = [
+      "<div class=\"result-top\">",
+      "  <div class=\"status-row\">",
+      "    <span class=\"status-pill is-success\">Чек распознан</span>",
+      "    <span class=\"source-badge\">QR чека</span>",
+      "  </div>",
+      "  <h2>QR чека распознан</h2>",
+      "  <p>Дата ниже относится к кассовому чеку.</p>",
+      "</div>",
+      renderFields(receiptFields(receipt)),
+      "<div class=\"raw-code\">" + escapeHtml(receipt.displayCode || receipt.raw || "") + "</div>"
+    ].join("");
+    renderIcons();
+  }
+
+  function receiptFields(receipt) {
+    var fields = [
+      ["Дата и время", DemoRegistry.formatDateTime(receipt.dateIso) || receipt.dateRaw || "-"],
+      ["Сумма", receipt.amountLabel || receipt.amount || "-"],
+      ["Операция", receipt.operationLabel || "-"],
+      ["ФН", receipt.fn || "-"],
+      ["ФД", receipt.fd || "-"],
+      ["ФП", receipt.fp || "-"]
+    ];
+
+    return fields;
   }
 
   function renderResult(result) {
     var parsed = result.parsed;
     var statusInfo = result.statusInfo;
+    var registryFields = buildRegistryFields(result);
+    var decodeTone = parsed.isValid ? "success" : result.source === "api" ? "warning" : "danger";
+    var decodeLabel = parsed.isValid ? "Расшифрован" : result.source === "api" ? "Проверен" : "Ошибка";
+    var decodeMessageClass = result.status === "INVALID"
+      ? "message is-danger"
+      : result.status === "IN_CIRCULATION"
+        ? "message is-warning"
+        : result.status === "NOT_FOUND"
+          ? "message is-info"
+          : "message";
+
+    elements.emptyResult.hidden = true;
+    elements.resultContent.hidden = false;
+
+    elements.resultContent.innerHTML = [
+      "<div class=\"result-top\">",
+      "  <div class=\"status-row\">",
+      "    <span class=\"status-pill is-" + escapeHtml(decodeTone) + "\">" + escapeHtml(decodeLabel) + "</span>",
+      "    <span class=\"source-badge\">GS1 DataMatrix</span>",
+      "  </div>",
+      "  <h2>Расшифровка кода</h2>",
+      "  <p>" + escapeHtml(getDecodeSummary(parsed)) + "</p>",
+      "  <p class=\"" + decodeMessageClass + "\">" + escapeHtml(getResultMessage(result)) + "</p>",
+      "</div>",
+      renderDecodedFields(parsed),
+      renderRegistryBlock(result, registryFields, statusInfo),
+      "<div class=\"raw-code\">" + escapeHtml(parsed.displayCode || "") + "</div>"
+    ].join("");
+    renderIcons();
+  }
+
+  function buildRegistryFields(result) {
+    var parsed = result.parsed;
     var fields = [
-      ["GTIN", parsed.data.gtin || "-"],
-      ["Серийный номер", parsed.data.serial || "-"],
+      ["GTIN", parsed.data.gtin || result.gtin || "-"],
+      ["Серийный номер", parsed.data.serial || result.serial || "-"],
       ["Категория", result.category || "-"],
       ["Производитель", result.manufacturer || "-"]
     ];
@@ -198,33 +296,82 @@
       fields.push(["Партия", parsed.data.batch]);
     }
 
-    var messageClass = result.status === "INVALID"
-      ? "message is-danger"
-      : result.status === "NOT_FOUND" || result.status === "IN_CIRCULATION"
-        ? "message is-warning"
-        : "message";
+    return fields;
+  }
 
-    elements.emptyResult.hidden = true;
-    elements.resultContent.hidden = false;
+  function getDecodeSummary(parsed) {
+    if (!parsed.fields.length) {
+      return "В строке не удалось найти GS1 Application Identifiers.";
+    }
+
+    var aiList = parsed.fields.map(function (field) { return field.ai; }).join(", ");
+    return "Найдены AI-поля: " + aiList + ". Ниже показано, что означает каждое поле.";
+  }
+
+  function renderDecodedFields(parsed) {
+    if (!parsed.fields.length) {
+      return "<section class=\"decode-block\"><p class=\"message is-danger\">Нет полей для расшифровки.</p></section>";
+    }
+
+    return [
+      "<section class=\"decode-block\">",
+      "  <h3>Поля внутри кода</h3>",
+      "  <div class=\"decode-list\">",
+      parsed.fields.map(renderDecodedField).join(""),
+      "  </div>",
+      "</section>"
+    ].join("");
+  }
+
+  function renderDecodedField(field) {
+    return [
+      "<article class=\"decode-item\">",
+      "  <span class=\"decode-ai\">AI " + escapeHtml(field.ai) + "</span>",
+      "  <div>",
+      "    <strong>" + escapeHtml(field.label) + "</strong>",
+      "    <code>" + escapeHtml(field.displayValue || field.value || "-") + "</code>",
+      "    <p>" + escapeHtml(field.description || "") + "</p>",
+      "  </div>",
+      "</article>"
+    ].join("");
+  }
+
+  function renderRegistryBlock(result, fields, statusInfo) {
     var sourceBadge = result.source === "api"
       ? "<span class=\"source-badge is-api\">Честный ЗНАК</span>"
-      : "<span class=\"source-badge\">Demo</span>";
+      : "<span class=\"source-badge\">Локально</span>";
 
-    elements.resultContent.innerHTML = [
-      "<div class=\"result-top\">",
-      "  <div class=\"status-row\">",
-      "    <span class=\"status-pill is-" + escapeHtml(statusInfo.tone) + "\">" + escapeHtml(statusInfo.label) + "</span>",
-      "    " + sourceBadge,
+    return [
+      "<section class=\"registry-block\">",
+      "  <div class=\"registry-heading\">",
+      "    <div>",
+      "      <p class=\"eyebrow\">Реестр</p>",
+      "      <h3>" + escapeHtml(result.productName) + "</h3>",
+      "    </div>",
+      "    <div class=\"registry-badges\">",
+      "      <span class=\"status-pill is-" + escapeHtml(statusInfo.tone) + "\">" + escapeHtml(statusInfo.label) + "</span>",
+      "      " + sourceBadge,
+      "    </div>",
       "  </div>",
-      "  <h2>" + escapeHtml(result.productName) + "</h2>",
-      "  <p>" + escapeHtml(result.category) + " · " + escapeHtml(result.manufacturer) + "</p>",
-      "  <p class=\"" + messageClass + "\">" + escapeHtml(getResultMessage(result)) + "</p>",
-      "</div>",
       renderFields(fields),
-      renderPurchase(result.purchase),
-      "<div class=\"raw-code\">" + escapeHtml(parsed.displayCode || "") + "</div>"
+      renderApiNotice(result),
+      renderApiDebug(result),
+      "</section>"
     ].join("");
-    renderIcons();
+  }
+
+  function renderApiNotice(result) {
+    if (!result.apiError) {
+      return "";
+    }
+
+    return [
+      "<p class=\"api-notice\">",
+      "Живая проверка не ответила: ",
+      escapeHtml(result.apiError),
+      ". Показана локальная расшифровка кода.",
+      "</p>"
+    ].join("");
   }
 
   function renderFields(fields) {
@@ -238,22 +385,16 @@
     }).join("") + "</dl>";
   }
 
-  function renderPurchase(purchase) {
-    if (!purchase) {
-      return [
-        "<div class=\"purchase-block\">",
-        "  <strong>Покупка</strong>",
-        "  <p class=\"purchase-note\">Нет данных в демо-реестре</p>",
-        "</div>"
-      ].join("");
+function renderApiDebug(result) {
+    if (result.source !== "api" || !result.apiDebug) {
+      return "";
     }
 
     return [
-      "<div class=\"purchase-block\">",
-      "  <strong>Покупка</strong>",
-      "  <p>" + escapeHtml(DemoRegistry.formatDateTime(purchase.date)) + "</p>",
-      "  <p class=\"purchase-note\">" + escapeHtml(purchase.store) + "</p>",
-      "</div>"
+      "<details class=\"api-debug\">",
+      "  <summary>Ответ Live API</summary>",
+      "  <pre>" + escapeHtml(result.apiDebug) + "</pre>",
+      "</details>"
     ].join("");
   }
 
@@ -284,7 +425,6 @@
   }
 
   function clearResult() {
-    elements.manualInput.value = "";
     elements.emptyResult.hidden = false;
     elements.resultContent.hidden = true;
     elements.resultContent.innerHTML = "";
