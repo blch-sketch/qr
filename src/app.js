@@ -76,15 +76,8 @@
   async function refreshScannerSupport() {
     try {
       var support = await scanner.checkSupport();
-
-      if (support.detector && support.dataMatrix) {
-        setSupportBadge("Data Matrix", "success");
-      } else if (support.detector) {
-        setSupportBadge("Нет Data Matrix", "warning");
-      } else {
-        setSupportBadge("Ручной ввод", "muted");
-      }
-    } catch (error) {
+      applyBadgeFromSupport(support);
+    } catch (_) {
       setSupportBadge("Ручной ввод", "muted");
     }
   }
@@ -97,14 +90,7 @@
       elements.cameraShell.classList.add("is-live");
       elements.startCameraButton.disabled = true;
       elements.stopCameraButton.disabled = false;
-
-      if (support && support.detector && support.dataMatrix) {
-        setSupportBadge("Data Matrix", "success");
-      } else if (support && support.detector) {
-        setSupportBadge("Нет Data Matrix", "warning");
-      } else {
-        setSupportBadge("Ручной ввод", "muted");
-      }
+      applyBadgeFromSupport(support);
     } catch (error) {
       setScanStatus(error.message || "Камера недоступна");
       setSupportBadge("Ручной ввод", "muted");
@@ -112,6 +98,14 @@
     } finally {
       setBusy(false);
     }
+  }
+
+  function applyBadgeFromSupport(support) {
+    if (!support) { setSupportBadge("Ручной ввод", "muted"); return; }
+    if (support.dataMatrix) { setSupportBadge("Data Matrix", "success"); return; }
+    if (support.zxing)      { setSupportBadge("ZXing",       "warning"); return; }
+    if (support.detector)   { setSupportBadge("Нет Data Matrix", "warning"); return; }
+    setSupportBadge("Ручной ввод", "muted");
   }
 
   function stopCamera() {
